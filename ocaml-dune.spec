@@ -5,7 +5,7 @@
 %bcond_with bootstrap
 
 Name:           ocaml-%{libname}
-Version:        2.4.0
+Version:        2.9.1
 Release:        1%{?dist}
 Summary:        A composable build system for OCaml
 
@@ -22,8 +22,8 @@ License:        MIT and LGPLv2 and LGPLv2 with exceptions and ISC
 URL:            https://dune.build
 Source0:        https://github.com/ocaml/%{libname}/archive/%{version}/%{libname}-%{version}.tar.gz
 
-BuildRequires:  emacs
-BuildRequires:  ocaml >= 4.07
+BuildRequires:  emacs make
+BuildRequires:  ocaml >= 4.08 ocaml-csexp-devel >= 1.3.0
 BuildRequires:  ocaml-findlib
 BuildRequires:  python3dist(sphinx)
 BuildRequires:  python3dist(sphinx-rtd-theme)
@@ -38,9 +38,10 @@ BuildRequires:  python3dist(sphinx-rtd-theme)
 # It seems to be unsupported upstream; the bootstrap process for dune
 # doesn't seem to be able to detect libraries installed systemwide.
 # https://github.com/ocaml/dune/issues/220
+Provides:      bundled(ocaml-build-path-prefix-map) = 0.2
 Provides:      bundled(ocaml-opam-file-format) = 2.0.0
-Provides:      bundled(ocaml-cmdliner) = 1.0.3
-Provides:      bundled(ocaml-re) = 1.7.1
+Provides:      bundled(ocaml-cmdliner) = 1.0.4
+Provides:      bundled(ocaml-re) = 1.9.0
 
 Provides:      dune = %{version}-%{release}
 
@@ -61,6 +62,7 @@ productive.
 %package        devel
 Summary:        Development files for %{name}
 Requires:       %{name}%{?isa} = %{version}-%{release}
+Requires:       ocaml-csexp-devel
 
 %description    devel
 The %{name}-devel package contains libraries and
@@ -90,7 +92,10 @@ system, a mode to edit dune files, and flymake support for dune files.
 %autosetup -n %{libname}-%{version} -p1
 
 %build
-./configure --libdir %{_libdir}/ocaml --mandir %{_mandir}
+./configure \
+  --etcdir %{_sysconfdir} \
+  --libdir %{_libdir}/ocaml \
+  --mandir %{_mandir}
 
 # This command fails, because ppx_bench, ppx_expect, and core_bench are missing.
 # However, it is only tests that fail, not the actual build, so ignore the
@@ -101,17 +106,16 @@ system, a mode to edit dune files, and flymake support for dune files.
 
 # Relink the stublib.  See https://github.com/ocaml/dune/issues/2977.
 cd _build/default/src/stdune
-ocamlmklib -g -ldopt "$RPM_LD_FLAGS" -o stdune_stubs fcntl_stubs.o
+ocamlmklib -g -ldopt "%{build_ldflags}" -o stdune_stubs fcntl_stubs.o
+cd -
+cd _build/default/src/dune_filesystem_stubs
+ocamlmklib -g -ldopt "%{build_ldflags}" -o dune_filesystem_stubs_stubs \
+  $(ar t libdune_filesystem_stubs_stubs.a)
 cd -
 
 %install
 # "make install" only installs the binary.  We want the libraries, too.
 ./dune.exe install --destdir %{buildroot}
-
-%ifarch %{ocaml_native_compiler}
-# Add missing executable bits
-find %{buildroot}%{_libdir}/ocaml -name \*.cmxs -exec chmod 0755 {} \+
-%endif
 
 # Byte compile the Emacs files
 cd %{buildroot}%{_emacs_sitelispdir}
@@ -148,15 +152,22 @@ cp -ar README.md CHANGES.md MIGRATION.md doc/_build/* %{buildroot}%{_pkgdocdir}/
 %dir %{_libdir}/ocaml/dune-private-libs/dune_re/
 %dir %{_libdir}/ocaml/dune-private-libs/ocaml-config/
 %dir %{_libdir}/ocaml/dune-private-libs/stdune/
+%dir %{_libdir}/ocaml/dune-site/
+%dir %{_libdir}/ocaml/dune-site/plugins/
 %{_libdir}/ocaml/dune*/META
 %{_libdir}/ocaml/dune*/*.cma
 %{_libdir}/ocaml/dune*/*.cmi
+%{_libdir}/ocaml/dune-configurator/.private/
 %{_libdir}/ocaml/dune-private-libs/*/*.cma
 %{_libdir}/ocaml/dune-private-libs/*/*.cmi
+%{_libdir}/ocaml/dune-site/*/*.cma
+%{_libdir}/ocaml/dune-site/*/*.cmi
 %ifarch %{ocaml_native_compiler}
 %{_libdir}/ocaml/dune*/*.cmxs
 %{_libdir}/ocaml/dune-private-libs/*/*.cmxs
+%{_libdir}/ocaml/dune-site/*/*.cmxs
 %{_libdir}/ocaml/stublibs/dllstdune_stubs.so
+%{_libdir}/ocaml/stublibs/dlldune_filesystem_stubs_stubs.so
 %endif
 
 %files devel
@@ -170,6 +181,10 @@ cp -ar README.md CHANGES.md MIGRATION.md doc/_build/* %{buildroot}%{_pkgdocdir}/
 %{_libdir}/ocaml/dune-private-libs/*/*.cmti
 %{_libdir}/ocaml/dune-private-libs/*/*.ml
 %{_libdir}/ocaml/dune-private-libs/*/*.mli
+%{_libdir}/ocaml/dune-site/*/*.cmt
+%{_libdir}/ocaml/dune-site/*/*.cmti
+%{_libdir}/ocaml/dune-site/*/*.ml
+%{_libdir}/ocaml/dune-site/*/*.mli
 %ifarch %{ocaml_native_compiler}
 %{_libdir}/ocaml/dune*/*.a
 %{_libdir}/ocaml/dune*/*.cmx
@@ -177,6 +192,9 @@ cp -ar README.md CHANGES.md MIGRATION.md doc/_build/* %{buildroot}%{_pkgdocdir}/
 %{_libdir}/ocaml/dune-private-libs/*/*.a
 %{_libdir}/ocaml/dune-private-libs/*/*.cmx
 %{_libdir}/ocaml/dune-private-libs/*/*.cmxa
+%{_libdir}/ocaml/dune-site/*/*.a
+%{_libdir}/ocaml/dune-site/*/*.cmx
+%{_libdir}/ocaml/dune-site/*/*.cmxa
 %endif
 
 %files doc
@@ -188,5 +206,9 @@ cp -ar README.md CHANGES.md MIGRATION.md doc/_build/* %{buildroot}%{_pkgdocdir}/
 %{_emacs_sitelispdir}/dune*
 
 %changelog
+* Thu Jan 20 2022 liyanan <liyanan32@huawei.com> - 2.9.1-1
+- update to 2.9.1
+
 * Thu Nov 12 2020 wanghongzhe<wanghongzhe@huawei.com> - 2.4.0-1
 - Package Init
+
