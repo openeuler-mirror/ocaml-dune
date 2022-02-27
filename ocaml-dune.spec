@@ -1,4 +1,7 @@
 %global libname dune
+%ifarch riscv64
+%global ocaml_native_compiler riscv64
+%endif
 
 # Since menhir now requires dune to build, but dune needs menhir only for the
 # tests, build in bootstrap mode to skip the tests and the need for menhir.
@@ -6,7 +9,7 @@
 
 Name:           ocaml-%{libname}
 Version:        2.4.0
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        A composable build system for OCaml
 
 # Dune itself is MIT.  Some bundled libraries have a different license:
@@ -188,5 +191,8 @@ cp -ar README.md CHANGES.md MIGRATION.md doc/_build/* %{buildroot}%{_pkgdocdir}/
 %{_emacs_sitelispdir}/dune*
 
 %changelog
+* Mon Feb 28 2022 YukariChiba<i@0x7f.cc> - 2.4.0-2
+- Set ocaml_native_compiler variable in RISC-V
+
 * Thu Nov 12 2020 wanghongzhe<wanghongzhe@huawei.com> - 2.4.0-1
 - Package Init
